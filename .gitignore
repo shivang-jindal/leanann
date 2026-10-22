@@ -1,0 +1,13 @@
+# Zero-dependency project: nothing is ever installed, so an accidental
+# dependency tree is never real content.
+**/node_modules/**
+# ...except the pinned test fixtures that simulate installed packages.
+!test/fixtures/**/node_modules/**
+
+# default index output (leanann index writes .leanann/ in the cwd)
+/.leanann/
+
+# editor/OS noise
+*.log
+.DS_Store
+Thumbs.db

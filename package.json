@@ -1,0 +1,28 @@
+{
+  "name": "leanann",
+  "version": "0.1.0",
+  "description": "Vector search that fits your RAM budget - hybrid BM25 + product-quantized ANN over a disk-paged HNSW graph. Zero dependencies.",
+  "type": "module",
+  "bin": {
+    "leanann": "./src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "vector-search",
+    "ann",
+    "hnsw",
+    "product-quantization",
+    "bm25",
+    "hybrid-search",
+    "memory-budget",
+    "rag",
+    "similarity-search",
+    "zero-dependency"
+  ]
+}
