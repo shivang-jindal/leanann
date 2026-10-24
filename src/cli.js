@@ -202,7 +202,11 @@ export async function main(argv, deps = {}) {
         const res = await checkIndex({ input, out: outDir, exclude });
         if (json) out(`${JSON.stringify(res, null, 2)}\n`);
         else if (res.stale) {
-          say(`stale: corpus changed since the index was built (expected ${res.expected.slice(0, 12)}, got ${res.actual.slice(0, 12)})`);
+          // expected is null when the manifest is missing/unreadable — a
+          // truncated or hand-deleted index still reports stale, and slicing
+          // null would crash the reporting path itself.
+          const expected = res.expected ? res.expected.slice(0, 12) : '<no manifest>';
+          say(`stale: corpus changed since the index was built (expected ${expected}, got ${res.actual.slice(0, 12)})`);
           say('re-run: leanann index <input> --out ...');
         } else say(`ok: index matches the corpus (${res.docs} docs)`);
         return res.stale ? 1 : 0;
@@ -287,7 +291,10 @@ export async function main(argv, deps = {}) {
         embedCmd: merged('embedCmd', merged('embed-cmd', null)) ?? null,
         dims: intFlag(flags, 'dims', Number(merged('dims', 384)), { min: 2 }),
         m: intFlag(flags, 'm', Number(merged('m', 8)), { min: 1 }),
-        codebookK: intFlag(flags, 'k-means-k', Number(merged('k', 256)), { min: 2, max: 256 }),
+        // k-means k, NOT `--k`: bench's --k is the top-k for the report
+        // (line 284), so defaulting this from merged('k') made `--k 50` also
+        // silently rebuild the codebooks with k=50.
+        codebookK: intFlag(flags, 'k-means-k', Number(merged('k-means-k', 256)), { min: 2, max: 256 }),
         graphM: intFlag(flags, 'graph-m', Number(merged('graphM', merged('graph-m', 16))), { min: 2 }),
         exclude,
         exec: deps.exec ?? null,

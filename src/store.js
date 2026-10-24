@@ -7,7 +7,7 @@
 // pages are keyed `${fid}:${pageNo}`.
 
 import { open, readFile, writeFile, stat, readdir, mkdir, rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { join, resolve, relative } from 'node:path';
 import { sha256 } from './util.js';
 import { PageCache } from './budget.js';
 
@@ -312,7 +312,11 @@ export async function hashTree(path, ignore = null) {
 async function walk(root, dir, out, ignore) {
   for (const name of (await readdir(dir)).sort()) {
     const abs = join(dir, name);
-    const rel = abs.slice(root.length + 1).replaceAll('\\', '/');
+    // path.relative, not abs.slice(root.length + 1): the latter corrupts rel
+    // when root is '.' or ends with a separator (every rel loses its first
+    // character), which silently changes the corpus hash and defeats the
+    // out-exclusion predicate.
+    const rel = relative(root, abs).replaceAll('\\', '/');
     if (ignore && ignore(rel)) continue;
     const st = await stat(abs);
     if (st.isDirectory()) await walk(root, abs, out, ignore);

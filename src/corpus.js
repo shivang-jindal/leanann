@@ -83,8 +83,10 @@ export async function* readCorpus({ input, exclude = [], dims = null }) {
     return;
   }
 
-  // JSONL file
-  const raw = await readFile(abs, 'utf8');
+  // JSONL file — strip a UTF-8 BOM: Windows editors (VS Code default, PowerShell
+  // redirects) write one, and JSON.parse chokes on it at line 1.
+  let raw = await readFile(abs, 'utf8');
+  if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
   let n = 0;
   let lineNo = 0;
   for (const line of raw.split('\n')) {

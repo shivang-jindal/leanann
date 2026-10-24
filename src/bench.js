@@ -76,9 +76,14 @@ export async function bench({
     });
   }
 
-  const idx = await openIndex({ dir: idxDir, budgetMb, pageKb, k, ef });
-  const { manifest } = idx;
-  say(`bench: ${manifest.docs} docs, k=${k}, queries=${queries}, budget=${budgetMb} MB`);
+  // try/finally: every exit path (embedder failure, query crash, budget
+  // violation) must close the pool and remove a scratch index — leaked
+  // handles + a full built index in os.tmpdir() is not acceptable.
+  let idx = null;
+  try {
+    idx = await openIndex({ dir: idxDir, budgetMb, pageKb, k, ef });
+    const { manifest } = idx;
+    say(`bench: ${manifest.docs} docs, k=${k}, queries=${queries}, budget=${budgetMb} MB`);
 
   // --- sample query docs (seeded reservoir over the corpus texts) ------------
   const rng = mulberry32(seed >>> 0);
@@ -209,11 +214,13 @@ export async function bench({
     elapsedMs: now() - started,
   };
 
-  await idx.pool.close();
-  if (scratch) await rm(scratch, { recursive: true, force: true }).catch(() => {});
-  say(`recall@${k}: vector=${report.recall.vector} hybrid=${report.recall.hybrid} bm25=${report.recall.bm25}`);
-  say(`p95=${report.latencyMs.p95}ms rss=${report.memory.rssHuman} disk=${report.diskHuman} degraded=${degradedQueries}`);
-  return report;
+    say(`recall@${k}: vector=${report.recall.vector} hybrid=${report.recall.hybrid} bm25=${report.recall.bm25}`);
+    say(`p95=${report.latencyMs.p95}ms rss=${report.memory.rssHuman} disk=${report.diskHuman} degraded=${degradedQueries}`);
+    return report;
+  } finally {
+    if (idx) await idx.pool.close().catch(() => {});
+    if (scratch) await rm(scratch, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 async function queryEmbeddingMany(manifest, texts, exec, dims) {

@@ -94,12 +94,22 @@ async function readMeta(dir, docId) {
     const mf = await open(join(dir, 'meta.bin'), 'r');
     try {
       const st = await mf.stat();
+      // Truncation guard: a crash mid-build leaves meta.bin shorter than
+      // metaoff.bin promises. Decode garbage would surface as a bare
+      // RangeError (or a negative Buffer.alloc) — report it as corruption.
+      if (off >= st.size) throw new StoreError(`meta.bin truncated: doc ${docId} offset ${off} beyond EOF ${st.size}`);
       const head = Buffer.alloc(Math.min(8, st.size - off));
       await mf.read(head, 0, head.length, off);
-      let [idLen, p] = varintDecode(head, 0);
+      let idLen, p;
+      try {
+        [idLen, p] = varintDecode(head, 0);
+      } catch (err) {
+        throw new StoreError(`meta.bin truncated: doc ${docId} id length unreadable (${err.message})`);
+      }
       const need = p + idLen;
       const full = Buffer.alloc(need + 4);
-      await mf.read(full, 0, Math.min(full.length, st.size - off), off);
+      const { bytesRead } = await mf.read(full, 0, Math.min(full.length, st.size - off), off);
+      if (bytesRead < need) throw new StoreError(`meta.bin truncated: doc ${docId} record needs ${need} bytes, has ${bytesRead}`);
       const id = full.subarray(p, p + idLen).toString('utf8');
       p += idLen;
       const [pvLen, p2] = varintDecode(full, p);
