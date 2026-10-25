@@ -14,4 +14,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '${{ matrix.node }}' }
-      - run: node --test test/
+      # test/*.test.js (bash-expanded): Node 20's `--test test/` directory search
+      # executes every .js under test/ (including fixture repos) as a test; the glob
+      # runs exactly the suite `node --test test/` runs on Node 22+.
+      - run: node --test test/*.test.js
