@@ -41,6 +41,11 @@ export function recallAtK(retrieved, expected) {
 export async function bench({
   input,
   index = null,
+  // Parent dir for a scratch (index: null) build. Injectable so tests can
+  // watch a PRIVATE directory — the shared os.tmpdir() races when another
+  // process legitimately mkdtemps its own leanann-bench-* scratch at the
+  // same moment (cli.test.js spawns the real CLI bench concurrently).
+  tmpRoot = tmpdir(),
   queries = 32,
   k = 10,
   budgetMb = 128,
@@ -67,7 +72,7 @@ export async function bench({
   let idxDir = index;
 
   if (!idxDir) {
-    scratch = await mkdtemp(join(tmpdir(), 'leanann-bench-'));
+    scratch = await mkdtemp(join(tmpRoot, 'leanann-bench-'));
     idxDir = scratch;
     say(`building scratch index under ${scratch} ...`);
     await buildIndex({

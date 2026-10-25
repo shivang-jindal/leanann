@@ -126,17 +126,33 @@ test('bench: injected hrtime/memory drive the reported numbers exactly', async (
 
 test('bench: scratch index is built and removed (no temp litter)', async () => {
   const { file } = await benchFixture('bench-scratch', { perTopic: 3, n: 12 });
-  const listScratch = () => fs.readdirSync(os.tmpdir()).filter((f) => f.startsWith('leanann-bench-'));
-  const before = listScratch();
-  const report = await bench({
-    input: file, index: null, queries: 3, k: 3,
-    dims: FAST.dims, m: FAST.m, codebookK: FAST.k, iters: FAST.iters, graphM: FAST.graphM,
-    budgetMb: FAST.budgetMb, pageKb: FAST.pageKb,
-  });
-  assert.ok(report.docs > 0);
-  assert.equal(report.recall.vector !== null, true, 'scratch build still measures recall');
-  const added = listScratch().filter((f) => !before.includes(f));
-  assert.deepEqual(added, [], 'scratch dirs must be cleaned up');
+  // Hermetic: watch a PRIVATE tmpRoot instead of the shared os.tmpdir().
+  // Scanning the system temp dir raced with cli.test.js, which runs the real
+  // `bench` CLI in another process and legitimately mkdtemps its own
+  // leanann-bench-* scratch there for a few hundred ms.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'leanann-litter-'));
+  try {
+    const notes = [];
+    const report = await bench({
+      input: file, index: null, queries: 3, k: 3,
+      dims: FAST.dims, m: FAST.m, codebookK: FAST.k, iters: FAST.iters, graphM: FAST.graphM,
+      budgetMb: FAST.budgetMb, pageKb: FAST.pageKb,
+      tmpRoot: root,
+      progress: (msg) => notes.push(msg),
+    });
+    assert.ok(report.docs > 0);
+    assert.equal(report.recall.vector !== null, true, 'scratch build still measures recall');
+    // the scratch really was created under OUR root (proven by the progress
+    // line bench emits before it starts building) ...
+    assert.ok(
+      notes.some((n) => n.startsWith('building scratch index under ') && n.includes(root)),
+      `scratch built under tmpRoot: ${JSON.stringify(notes)}`,
+    );
+    // ... and is gone by the time bench() resolves
+    assert.deepEqual(fs.readdirSync(root), [], 'scratch dirs must be cleaned up');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('bench: recallAtK id-space rule (hydrated docId vs string id)', async () => {
